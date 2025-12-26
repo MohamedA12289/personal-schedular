@@ -1,112 +1,445 @@
+import Image from "next/image";
 "use client";
 
-import { useState } from "react";
-
-type Tab = "today" | "calendar" | "tasks" | "settings";
-
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<Tab>("today");
+import { useMemo, useState } from "react";
 
+import { TabNavigation, TabDefinition, TabKey } from "@/app/components/tab-navigation";
+import { useEvents } from "@/app/hooks/use-events";
+import {
+  formatDate,
+  formatTime,
+  getMonthMatrix,
+  getWeekForDate,
+  isSameDay,
+  startOfDay,
+} from "@/app/lib/date-utils";
+import { parseNaturalEvent } from "@/app/lib/nlp";
+import type { EventItem } from "@/app/types/event";
+
+const TABS: TabDefinition[] = [
+  { key: "today", label: "Today" },
+  { key: "calendar", label: "Calendar" },
+  { key: "tasks", label: "Tasks" },
+  { key: "settings", label: "Settings" },
+];
+
+function HeaderBar({ focusDate }: { focusDate: Date }) {
   return (
-    <main className="min-h-screen bg-gray-100 text-slate-900 flex justify-center px-4 py-6">
-      <div className="w-full max-w-3xl space-y-4">
-        {/* Top bar */}
-        <header className="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">My Schedule</h1>
-            <p className="text-xs text-slate-500">
-              Personal planner • local only
-            </p>
-          </div>
-          <span className="text-xs text-slate-500">
-            {new Date().toLocaleDateString()}
-          </span>
-        </header>
-
-        {/* Tabs */}
-        <nav className="bg-white rounded-2xl shadow-sm border border-gray-200 px-3 py-2 flex gap-2 text-sm">
-          <TabButton
-            label="Today"
-            isActive={activeTab === "today"}
-            onClick={() => setActiveTab("today")}
-          />
-          <TabButton
-            label="Calendar"
-            isActive={activeTab === "calendar"}
-            onClick={() => setActiveTab("calendar")}
-          />
-          <TabButton
-            label="Tasks"
-            isActive={activeTab === "tasks"}
-            onClick={() => setActiveTab("tasks")}
-          />
-          <TabButton
-            label="Settings"
-            isActive={activeTab === "settings"}
-          onClick={() => setActiveTab("settings")}
-          />
-        </nav>
-
-        {/* Content */}
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 py-4 min-h-[300px]">
-          {activeTab === "today" && (
-            <div>
-              <h2 className="text-base font-semibold mb-1">Today</h2>
-              <p className="text-sm text-slate-500">
-                This will show today&apos;s schedule.
-              </p>
-            </div>
-          )}
-          {activeTab === "calendar" && (
-            <div>
-              <h2 className="text-base font-semibold mb-1">Calendar</h2>
-              <p className="text-sm text-slate-500">
-                This will become the Apple Calendar-style view.
-              </p>
-            </div>
-          )}
-          {activeTab === "tasks" && (
-            <div>
-              <h2 className="text-base font-semibold mb-1">Tasks</h2>
-              <p className="text-sm text-slate-500">
-                This will show all tasks across days.
-              </p>
-            </div>
-          )}
-          {activeTab === "settings" && (
-            <div>
-              <h2 className="text-base font-semibold mb-1">Settings</h2>
-              <p className="text-sm text-slate-500">
-                This will include notifications, export/import, and PWA info.
-              </p>
-            </div>
-          )}
-        </section>
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
+        <Image
+          className="dark:invert"
+          src="/next.svg"
+          alt="Next.js logo"
+          width={100}
+          height={20}
+          priority
+        />
+        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
+          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
+            To get started, edit the page.tsx file.
+          </h1>
+          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+            Looking for a starting point or more instructions? Head over to{" "}
+            <a
+              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              className="font-medium text-zinc-950 dark:text-zinc-50"
+            >
+              Templates
+            </a>{" "}
+            or the{" "}
+            <a
+              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              className="font-medium text-zinc-950 dark:text-zinc-50"
+            >
+              Learning
+            </a>{" "}
+            center.
+          </p>
+    <header className="flex flex-col gap-2 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 text-white shadow-lg shadow-emerald-200/70">
+          📅
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-[0.12em] text-slate-500">My Schedule</p>
+          <h1 className="text-2xl font-semibold text-slate-900">PassivePilot-inspired planner</h1>
+        </div>
       </div>
-    </main>
+      <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
+        <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
+        <span>{formatDate(focusDate, { weekday: "long", month: "long", day: "numeric" })}</span>
+      </div>
+    </header>
   );
 }
 
-function TabButton({
-  label,
-  isActive,
-  onClick,
+function CalendarView({
+  viewDate,
+  selectedDate,
+  events,
+  mode,
+  onSelectDate,
+  onChangeMonth,
+  onModeChange,
 }: {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
+  viewDate: Date;
+  selectedDate: Date;
+  events: EventItem[];
+  mode: "month" | "week";
+  onSelectDate: (date: Date) => void;
+  onChangeMonth: (direction: -1 | 1) => void;
+  onModeChange: (mode: "month" | "week") => void;
 }) {
+  const weeks = useMemo(() => {
+    if (mode === "week") return [getWeekForDate(selectedDate)];
+    return getMonthMatrix(viewDate);
+  }, [mode, selectedDate, viewDate]);
+
+  const eventsForSelected = events
+    .filter((event) => isSameDay(new Date(event.start), selectedDate))
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
   return (
-    <button
-      onClick={onClick}
-      className={
-        "px-3 py-1.5 rounded-full text-xs md:text-sm border transition " +
-        (isActive
-          ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
-          : "bg-gray-50 text-slate-600 border-gray-200 hover:bg-white")
-      }
-    >
-      {label}
-    </button>
+    <section className="space-y-4" id="tab-panel-calendar" role="tabpanel" aria-labelledby="tab-calendar">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm uppercase tracking-[0.16em] text-slate-400">Calendar</p>
+          <h2 className="text-2xl font-semibold text-slate-900">{formatDate(viewDate, { month: "long", year: "numeric" })}</h2>
+        </div>
+        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+          <a
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
+            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onModeChange("month")}
+            className={`rounded-full px-3 py-2 text-sm font-medium transition ${
+              mode === "month" ? "bg-teal-500 text-white" : "bg-white text-slate-700 shadow-sm"
+            }`}
+          >
+            <Image
+              className="dark:invert"
+              src="/vercel.svg"
+              alt="Vercel logomark"
+              width={16}
+              height={16}
+            />
+            Deploy Now
+          </a>
+          <a
+            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
+            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+            Month
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("week")}
+            className={`rounded-full px-3 py-2 text-sm font-medium transition ${
+              mode === "week" ? "bg-teal-500 text-white" : "bg-white text-slate-700 shadow-sm"
+            }`}
+          >
+            Week
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeMonth(-1)}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeMonth(1)}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
+          >
+            Next
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectDate(startOfDay(new Date()))}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
+          >
+            Today
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-2 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
+          <div key={label} className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </div>
+        ))}
+        {weeks.map((week, idx) => (
+          <div key={idx} className="contents">
+            {week.map((day) => {
+              const isToday = isSameDay(day, new Date());
+              const isSelected = isSameDay(day, selectedDate);
+              const dayEvents = events.filter((event) => isSameDay(new Date(event.start), day));
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => onSelectDate(startOfDay(day))}
+                  className={`relative flex h-16 flex-col items-center justify-center rounded-xl border text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 ${
+                    isSelected
+                      ? "border-teal-500 bg-gradient-to-br from-teal-50 to-emerald-50 text-teal-800 shadow"
+                      : "border-gray-200 bg-white text-slate-700 hover:border-teal-200"
+                  }`}
+                  aria-current={isToday ? "date" : undefined}
+                >
+                  <span className="text-base font-semibold">{day.getDate()}</span>
+                  {isToday && <span className="text-[10px] font-semibold text-teal-600">Today</span>}
+                  {dayEvents.length > 0 && (
+                    <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-600">
+                      ● {dayEvents.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
+        <h3 className="text-sm font-semibold text-slate-800">
+          Events on {formatDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}
+        </h3>
+        {eventsForSelected.length === 0 ? (
+          <p className="text-sm text-slate-500">No events yet for this day.</p>
+        ) : (
+          <div className="space-y-2">
+            {eventsForSelected.map((event) => (
+              <div key={event.id} className="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{event.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {formatTime(new Date(event.start))}
+                    {event.end ? ` – ${formatTime(new Date(event.end))}` : ""}
+                  </p>
+                </div>
+                <span className="rounded-full bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-700">{event.category ?? "Personal"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TodayPlaceholder({ todayEvents }: { todayEvents: EventItem[] }) {
+  return (
+    <section className="space-y-4" id="tab-panel-today" role="tabpanel" aria-labelledby="tab-today">
+      <div className="rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.16em] text-slate-400">Today</p>
+            <h2 className="text-2xl font-semibold text-slate-900">Quick glance</h2>
+          </div>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+            {todayEvents.length} event{todayEvents.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {todayEvents.length === 0 && <p className="text-sm text-slate-500">Nothing scheduled yet. Try adding one from the chat bar below.</p>}
+          {todayEvents.map((event) => (
+            <div key={event.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50 px-3 py-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{event.title}</p>
+                <p className="text-xs text-slate-600">{formatTime(new Date(event.start))}</p>
+              </div>
+              <span className="text-xs text-slate-500">{formatDate(new Date(event.start), { weekday: "short" })}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PlaceholderCard({ title, description, panelId }: { title: string; description: string; panelId: string }) {
+  return (
+    <section className="space-y-3" id={`tab-panel-${panelId}`} role="tabpanel" aria-labelledby={`tab-${panelId}`}>
+      <div className="rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
+        <p className="text-sm uppercase tracking-[0.16em] text-slate-400">{title}</p>
+        <h2 className="text-xl font-semibold text-slate-900">Coming soon</h2>
+        <p className="text-sm text-slate-600">{description}</p>
+      </div>
+    </section>
+  );
+}
+
+function ChatInput({
+  onSubmit,
+  messages,
+}: {
+  onSubmit: (value: string) => void;
+  messages: { id: string; role: "system" | "user"; text: string }[];
+}) {
+  const [value, setValue] = useState("");
+  const handleSend = () => {
+    if (!value.trim()) return;
+    onSubmit(value);
+    setValue("");
+  };
+  return (
+    <div className="sticky bottom-0 mt-6 rounded-2xl bg-white p-4 shadow-lg shadow-slate-300/50">
+      <div className="space-y-2">
+        <div className="space-y-1">
+          {messages.slice(-3).map((msg) => (
+            <div
+              key={msg.id}
+              className={`w-fit max-w-full rounded-2xl px-3 py-2 text-sm shadow-sm ${
+                msg.role === "user" ? "ml-auto bg-teal-100 text-teal-900" : "bg-slate-100 text-slate-800"
+              }`}
+            >
+              {msg.text}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-slate-50 px-3 py-2 shadow-inner">
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="e.g. math test at 7 pm Thursday"
+            className="flex-1 bg-transparent text-sm text-slate-900 outline-none"
+          />
+          <button
+            type="button"
+            onClick={handleSend}
+            className="rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-teal-600"
+          >
+            Documentation
+          </a>
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const [activeTab, setActiveTab] = useState<TabKey>("calendar");
+  const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const [viewDate, setViewDate] = useState(startOfDay(new Date()));
+  const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
+  const [messages, setMessages] = useState<{ id: string; role: "system" | "user"; text: string }[]>([
+    {
+      id: "welcome",
+      role: "system",
+      text: "Type natural language to add events (e.g. ‘project due tomorrow at 3pm’).",
+    },
+  ]);
+
+  const { events, addEvent } = useEvents();
+
+  const todayEvents = useMemo(
+    () => events.filter((event) => isSameDay(new Date(event.start), startOfDay(new Date()))),
+    [events],
+  );
+
+  const handleSelectDate = (date: Date) => {
+    setSelectedDate(startOfDay(date));
+    setViewDate(startOfDay(date));
+  };
+
+  const handleChangeMonth = (direction: -1 | 1) => {
+    const next = new Date(viewDate);
+    next.setMonth(viewDate.getMonth() + direction);
+    setViewDate(next);
+  };
+
+  const handleNaturalSubmit = (value: string) => {
+    const parsed = parseNaturalEvent(value, selectedDate);
+    if (!parsed) {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "user", text: value },
+        { id: crypto.randomUUID(), role: "system", text: "I couldn’t understand that. Try ‘math test at 7 pm Thursday’." },
+      ]);
+      return;
+    }
+
+    const event: EventItem = {
+      id: crypto.randomUUID(),
+      title: parsed.title,
+      start: parsed.start.toISOString(),
+      end: parsed.end?.toISOString(),
+      category: "Personal",
+    };
+
+    addEvent(event);
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), role: "user", text: value },
+      {
+        id: crypto.randomUUID(),
+        role: "system",
+        text: `Added: ${parsed.title} on ${formatDate(parsed.start, { weekday: "short", month: "short", day: "numeric" })} at ${formatTime(parsed.start)}.`,
+      },
+    ]);
+    setSelectedDate(startOfDay(parsed.start));
+    setViewDate(startOfDay(parsed.start));
+    setActiveTab("calendar");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 text-slate-900">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 pb-24 pt-6">
+        <HeaderBar focusDate={selectedDate} />
+
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-md shadow-slate-200/70">
+          <TabNavigation tabs={TABS} activeTab={activeTab} onSelect={setActiveTab} />
+
+          <main className="space-y-6 p-4 sm:p-6" aria-live="polite">
+            {activeTab === "today" && <TodayPlaceholder todayEvents={todayEvents} />}
+            {activeTab === "calendar" && (
+              <CalendarView
+                viewDate={viewDate}
+                selectedDate={selectedDate}
+                events={events}
+                mode={calendarMode}
+                onSelectDate={handleSelectDate}
+                onChangeMonth={handleChangeMonth}
+                onModeChange={setCalendarMode}
+              />
+            )}
+            {activeTab === "tasks" && (
+              <PlaceholderCard
+                title="Tasks"
+                description="Task management and reminders will appear here. For now, use the Calendar tab to add events."
+                panelId="tasks"
+              />
+            )}
+            {activeTab === "settings" && (
+              <PlaceholderCard
+                title="Settings"
+                description="Notification toggles, export/import, and PWA install tips will show up here soon."
+                panelId="settings"
+              />
+            )}
+          </main>
+        </div>
+      </main>
+
+        <ChatInput onSubmit={handleNaturalSubmit} messages={messages} />
+      </div>
+    </div>
   );
 }

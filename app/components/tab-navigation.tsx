@@ -1,4 +1,4 @@
-export type TabKey = "calendar" | "day" | "list" | "settings";
+export type TabKey = "today" | "calendar" | "tasks" | "settings";
 
 export type TabDefinition = {
   key: TabKey;
