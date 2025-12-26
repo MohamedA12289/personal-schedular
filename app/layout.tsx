@@ -1,23 +1,20 @@
-import type { Metadata } from "next";
+// app/layout.tsx
 import "./globals.css";
-import { ServiceWorkerRegister } from "@/app/components/service-worker-register";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "My personal shiesty planner",
-  description: "A local-first planner that keeps your schedule, chat input, and reminders on your device.",
+  title: "My Personal Shiesty Planner",
+  description: "Local-first planning assistant",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <body className="antialiased bg-gray-50 text-slate-900">
-        <ServiceWorkerRegister />
-        {children}
-      </body>
+      <body className="bg-zinc-950 text-zinc-100">{children}</body>
     </html>
   );
 }

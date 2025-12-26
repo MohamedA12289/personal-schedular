@@ -1,3 +1,4 @@
+// app/lib/date-utils.ts
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const MONTH_NAME_TO_INDEX: Record<string, number> = {
@@ -71,6 +72,15 @@ export function startOfDay(date: Date) {
   return d;
 }
 
+// ✅ FIX: stable local-day key (no UTC shift)
+export function localDayKey(date: Date) {
+  const d = startOfDay(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function addDays(date: Date, days: number) {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -140,10 +150,8 @@ export function clampDateToDay(date: Date) {
 export function parseTimeText(text: string) {
   const normalized = text.trim().toLowerCase();
 
-  // Quick mappings for common phrases
   if (normalized.includes("noon")) return { hours: 12, minutes: 0 };
   if (normalized.includes("midnight")) return { hours: 0, minutes: 0 };
-  // "after lunch" is treated as early afternoon for casual phrasing
   if (normalized.includes("after lunch")) return { hours: 13, minutes: 0 };
 
   const match = normalized.match(/(\d{1,2})(?::(\d{2}))?\s?(am|pm|a|p)?/i);
