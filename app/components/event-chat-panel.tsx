@@ -1,53 +1,82 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 
-export type ChatInputProps = {
-  placeholder?: string;
-  buttonLabel?: string;
-  onSubmit: (value: string) => void;
+import { ChatInput } from "@/app/components/chat-input";
+import { ChatLog, type ChatMessage } from "@/app/components/chat-log";
+import { formatDate, formatTime, startOfDay } from "@/app/lib/date-utils";
+import { parseNaturalEvent } from "@/app/lib/nlp";
+import { createEventId, useEvents } from "@/app/hooks/use-events";
+import type { EventInput } from "@/app/types/event";
+
+type EventChatPanelProps = {
+  focusDate?: Date;
+  onDateSelected?: (date: Date) => void;
+  onEventCreated?: (event: EventInput) => void;
+  addEvent?: (event: EventInput) => void;
 };
 
-export function ChatInput({ placeholder = "e.g. math test at 7 pm Thursday", buttonLabel = "Add", onSubmit }: ChatInputProps) {
-  const [value, setValue] = useState("");
+export function EventChatPanel({ focusDate = new Date(), onDateSelected, onEventCreated, addEvent }: EventChatPanelProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "system",
+      text: "Type natural language to add events (e.g. ‘project due tomorrow at 3pm’).",
+    },
+  ]);
+  const eventsApi = useEvents();
+  const addEventHandler = addEvent ?? eventsApi.addEvent;
+  const addEventsHandler = eventsApi.addEvents;
 
-  const handleSend = (e?: FormEvent) => {
-    e?.preventDefault();
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    onSubmit(trimmed);
-    setValue("");
+  const handleSubmit = (value: string) => {
+    const parsed = parseNaturalEvent(value, focusDate);
+    if (!parsed || parsed.events.length === 0) {
+      setMessages((prev) => [
+        ...prev,
+        { id: createEventId(), role: "user", text: value },
+        {
+          id: createEventId(),
+          role: "system",
+          text: "I couldn’t understand that. Try ‘math test at 7 pm Thursday’.",
+        },
+      ]);
+      return;
+    }
+
+    const inputs: EventInput[] = parsed.events.map((event) => ({
+      title: event.title,
+      start: event.start.toISOString(),
+      end: event.end?.toISOString(),
+      notes: event.notes,
+      category: "Personal",
+    }));
+
+    if (inputs.length === 1) {
+      addEventHandler(inputs[0]);
+    } else {
+      addEventsHandler(inputs);
+    }
+    setMessages((prev) => [
+      ...prev,
+      { id: createEventId(), role: "user", text: value },
+      {
+        id: createEventId(),
+        role: "system",
+        text:
+          inputs.length === 1
+            ? `Added: ${inputs[0].title} on ${formatDate(new Date(inputs[0].start), { weekday: "short", month: "short", day: "numeric" })} at ${formatTime(new Date(inputs[0].start))}.`
+            : `Added ${inputs.length} events starting ${formatDate(new Date(inputs[0].start), { month: "short", day: "numeric" })}.`,
+      },
+    ]);
+    const targetDate = startOfDay(new Date(inputs[0].start));
+    onDateSelected?.(targetDate);
+    onEventCreated?.(inputs[0]);
   };
 
   return (
-    <form
-      className="sticky bottom-4 mx-auto flex max-w-6xl flex-col gap-2 rounded-2xl border border-gray-200 bg-white/80 p-3 backdrop-blur shadow-lg shadow-slate-300/50"
-      onSubmit={handleSend}
-    >
-      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400" htmlFor="chat-input">
-        Quick add
-      </label>
-      <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm focus-within:border-teal-300">
-        <input
-          id="chat-input"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder={placeholder}
-          className="flex-1 bg-transparent text-sm text-slate-900 outline-none"
-        />
-        <button
-          type="submit"
-          className="rounded-full bg-teal-500 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-teal-600"
-        >
-          {buttonLabel}
-        </button>
-      </div>
-    </form>
+    <div className="space-y-3">
+      <ChatLog messages={messages} />
+      <ChatInput onSubmit={handleSubmit} />
+    </div>
   );
 }

@@ -23,3 +23,9 @@ Parser examples (reference expectations):
 Year view checks:
 - Switching modes between Month, Week, and Year keeps event badges accurate.
 - Selecting Dec 25 from the Year grid highlights it when returning to Month or Day views.
+
+Realtime sync notes:
+- Supabase env vars are optional; when present with a signed-in session, `useEvents` merges cloud rows and listens to
+  `postgres_changes` on `public.events` filtered by `user_id`.
+- Publications: add `events` to the `supabase_realtime` publication; RLS must limit access to the current user.
+- Local-only mode remains the fallback if Supabase is unreachable or no session token exists.
