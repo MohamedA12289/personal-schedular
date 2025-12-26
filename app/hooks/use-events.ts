@@ -29,6 +29,14 @@ function writeEvents(events: EventItem[]) {
   }
 }
 
+function normalizeEvent(event: EventItem): EventItem {
+  return {
+    ...event,
+    start: new Date(event.start).toISOString(),
+    end: event.end ? new Date(event.end).toISOString() : undefined,
+  };
+}
+
 export function useEvents() {
   const [events, setEvents] = useState<EventItem[]>(() => readEvents());
 
@@ -37,22 +45,40 @@ export function useEvents() {
   }, [events]);
 
   const addEvent = useCallback((input: EventInput) => {
+    const newEvent = normalizeEvent({ ...(input as EventItem), id: crypto.randomUUID() });
     setEvents((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        ...input,
-      },
+      newEvent,
     ]);
   }, []);
 
   const updateEvent = useCallback((id: string, partial: Partial<EventItem>) => {
-    setEvents((prev) => prev.map((event) => (event.id === id ? { ...event, ...partial } : event)));
+    setEvents((prev) => prev.map((event) => (event.id === id ? normalizeEvent({ ...event, ...partial }) : event)));
   }, []);
 
   const deleteEvent = useCallback((id: string) => {
     setEvents((prev) => prev.filter((event) => event.id !== id));
   }, []);
 
-  return { events, addEvent, updateEvent, deleteEvent } as const;
+  const replaceAll = useCallback((next: EventItem[]) => {
+    setEvents(next.map(normalizeEvent));
+  }, []);
+
+  const exportEvents = useCallback(() => JSON.stringify(events, null, 2), [events]);
+
+  const importFromFile = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return false;
+      const valid = parsed.filter((item): item is EventItem => typeof item?.id === "string" && typeof item?.title === "string");
+      replaceAll(valid);
+      return true;
+    } catch (error) {
+      console.error("Failed to import events", error);
+      return false;
+    }
+  }, [replaceAll]);
+
+  return { events, addEvent, updateEvent, deleteEvent, replaceAll, exportEvents, importFromFile } as const;
 }
