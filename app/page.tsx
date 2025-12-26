@@ -499,3 +499,138 @@ export default function Home() {
     </div>
   );
 }
+
+export default function Home() {
+  const [activeTab, setActiveTab] = useState<TabKey>("calendar");
+  const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const [viewDate, setViewDate] = useState(startOfDay(new Date()));
+  const [calendarMode, setCalendarMode] = useState<"month" | "week" | "year">("month");
+  const [messages, setMessages] = useState<{ id: string; role: "system" | "user"; text: string }[]>([
+    {
+      id: "welcome",
+      role: "system",
+      text: "Type natural language to add events (e.g. ‘project due tomorrow at 3pm’).",
+    },
+  ]);
+
+  const { events, addEvent, addEvents } = useEvents();
+
+  const todayEvents = useMemo(
+    () => events.filter((event) => isSameDay(new Date(event.start), startOfDay(new Date()))),
+    [events],
+  );
+
+  const handleSelectDate = (date: Date) => {
+    setSelectedDate(startOfDay(date));
+    setViewDate(startOfDay(date));
+  };
+
+  const handleChangeMonth = (direction: -1 | 1, span: "month" | "year" = "month") => {
+    const next = new Date(viewDate);
+    if (span === "year") {
+      next.setFullYear(viewDate.getFullYear() + direction);
+    } else {
+      next.setMonth(viewDate.getMonth() + direction);
+    }
+    setViewDate(startOfDay(next));
+  };
+
+  const handleNaturalSubmit = (value: string) => {
+    const parsed = parseNaturalEvent(value, selectedDate);
+    if (!parsed || parsed.events.length === 0) {
+      setMessages((prev) => [
+        ...prev,
+        { id: createEventId(), role: "user", text: value },
+        { id: createEventId(), role: "system", text: "I couldn’t understand that. Try ‘math test at 7 pm Thursday’." },
+      ]);
+      return;
+    }
+
+    const inputs: EventInput[] = parsed.events.map((event) => ({
+      title: event.title,
+      start: event.start.toISOString(),
+      end: event.end?.toISOString(),
+      notes: event.notes,
+      category: "Personal",
+    }));
+
+    if (inputs.length === 1) {
+      addEvent(inputs[0]);
+    } else {
+      addEvents(inputs);
+    }
+
+    const first = parsed.events[0];
+    const addedText =
+      inputs.length === 1
+        ? `Added: ${first.title} on ${formatDate(first.start, { weekday: "short", month: "short", day: "numeric" })} at ${formatTime(first.start)}.`
+        : `Added ${inputs.length} events starting ${formatDate(first.start, { month: "short", day: "numeric" })}.`;
+
+    setMessages((prev) => [
+      ...prev,
+      { id: createEventId(), role: "user", text: value },
+      { id: createEventId(), role: "system", text: addedText },
+    ]);
+    setSelectedDate(startOfDay(first.start));
+    setViewDate(startOfDay(first.start));
+    setActiveTab("calendar");
+  };
+
+  const handleManualAdd = (input: EventInput) => {
+    addEvent(input);
+    const target = startOfDay(new Date(input.start));
+    setSelectedDate(target);
+    setViewDate(target);
+    setActiveTab("calendar");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 text-slate-900">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 pb-24 pt-6">
+        <HeaderBar focusDate={selectedDate} />
+
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-md shadow-slate-200/70">
+          <TabNavigation tabs={TABS} activeTab={activeTab} onSelect={setActiveTab} />
+
+          <main className="space-y-6 p-4 sm:p-6" aria-live="polite">
+            {activeTab === "today" && <TodayPlaceholder todayEvents={todayEvents} />}
+            {activeTab === "calendar" && (
+              <CalendarView
+                viewDate={viewDate}
+                selectedDate={selectedDate}
+                events={events}
+                mode={calendarMode}
+                onSelectDate={handleSelectDate}
+                onChangeMonth={handleChangeMonth}
+                onModeChange={setCalendarMode}
+              />
+            )}
+            {activeTab === "tasks" && (
+              <PlaceholderCard
+                title="Tasks"
+                description="Task management and reminders will appear here. For now, use the Calendar tab to add events."
+                panelId="tasks"
+              />
+            )}
+            {activeTab === "settings" && (
+              <PlaceholderCard
+                title="Settings"
+                description="Notification toggles, export/import, and PWA install tips will show up here soon."
+                panelId="settings"
+              />
+            )}
+          </main>
+        </div>
+      </main>
+
+        <ManualEventForm
+          selectedDate={selectedDate}
+          onAdd={handleManualAdd}
+          onDateChange={(date) => handleSelectDate(startOfDay(date))}
+        />
+
+        <ChatInput onSubmit={handleNaturalSubmit} messages={messages} />
+      </div>
+    </div>
+  );
+}
