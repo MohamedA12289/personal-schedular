@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "My Schedule",
-    short_name: "Schedule",
-    description: "PassivePilot-inspired personal scheduler",
+    name: "My personal shiesty planner",
+    short_name: "Shiesty Planner",
+    description: "Local-first planner with calendar, day, list views, chat input, and reminders",
     start_url: "/",
     display: "standalone",
     theme_color: "#ffffff",
