@@ -73,14 +73,27 @@ export function clampDateToDay(date: Date) {
 }
 
 export function parseTimeText(text: string) {
-  const match = text.match(/(\d{1,2})(?::(\d{2}))?\s?(am|pm)?/i);
+  const normalized = text.trim().toLowerCase();
+
+  // Quick mappings for common phrases
+  if (normalized.includes("noon")) return { hours: 12, minutes: 0 };
+  if (normalized.includes("midnight")) return { hours: 0, minutes: 0 };
+  // "after lunch" is treated as early afternoon for casual phrasing
+  if (normalized.includes("after lunch")) return { hours: 13, minutes: 0 };
+
+  const match = normalized.match(/(\d{1,2})(?::(\d{2}))?\s?(am|pm|a|p)?/i);
   if (!match) return null;
   const hour = parseInt(match[1] ?? "0", 10);
   const minutes = parseInt(match[2] ?? "0", 10);
   const period = match[3]?.toLowerCase();
   let hours = hour;
-  if (period === "pm" && hour !== 12) hours += 12;
-  if (period === "am" && hour === 12) hours = 0;
+
+  if (period === "pm" || period === "p") {
+    if (hour !== 12) hours += 12;
+  } else if (period === "am" || period === "a") {
+    if (hour === 12) hours = 0;
+  }
+
   return { hours, minutes };
 }
 

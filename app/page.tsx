@@ -41,8 +41,8 @@ function HeaderBar({ selectedDate }: { selectedDate: Date }) {
           PP
         </div>
         <div>
-          <p className="text-xs uppercase tracking-[0.12em] text-slate-500">My Schedule</p>
-          <h1 className="text-2xl font-semibold text-slate-900">PassivePilot-inspired planner</h1>
+          <p className="text-xs uppercase tracking-[0.12em] text-slate-500">My personal shiesty planner</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Local-first planning assistant</h1>
         </div>
       </div>
       <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
