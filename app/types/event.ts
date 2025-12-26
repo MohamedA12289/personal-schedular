@@ -1,4 +1,11 @@
-export type EventCategory = "School" | "Work" | "Business" | "Personal" | "Other";
+export type EventCategory =
+  | "School"
+  | "Work"
+  | "Business"
+  | "Personal"
+  | "Other"
+  | "Gym"
+  | "Money";
 
 export type EventItem = {
   id: string;

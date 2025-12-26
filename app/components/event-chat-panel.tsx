@@ -7,13 +7,13 @@ import { ChatLog, type ChatMessage } from "@/app/components/chat-log";
 import { formatDate, formatTime, startOfDay } from "@/app/lib/date-utils";
 import { parseNaturalEvent } from "@/app/lib/nlp";
 import { useEvents } from "@/app/hooks/use-events";
-import type { EventItem } from "@/app/types/event";
+import type { EventInput } from "@/app/types/event";
 
 type EventChatPanelProps = {
   focusDate?: Date;
   onDateSelected?: (date: Date) => void;
-  onEventCreated?: (event: EventItem) => void;
-  addEvent?: (event: EventItem) => void;
+  onEventCreated?: (event: EventInput) => void;
+  addEvent?: (event: EventInput) => void;
 };
 
 export function EventChatPanel({ focusDate = new Date(), onDateSelected, onEventCreated, addEvent }: EventChatPanelProps) {
@@ -26,10 +26,11 @@ export function EventChatPanel({ focusDate = new Date(), onDateSelected, onEvent
   ]);
   const eventsApi = useEvents();
   const addEventHandler = addEvent ?? eventsApi.addEvent;
+  const addEventsHandler = eventsApi.addEvents;
 
   const handleSubmit = (value: string) => {
     const parsed = parseNaturalEvent(value, focusDate);
-    if (!parsed) {
+    if (!parsed || parsed.events.length === 0) {
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: "user", text: value },
@@ -42,27 +43,33 @@ export function EventChatPanel({ focusDate = new Date(), onDateSelected, onEvent
       return;
     }
 
-    const event: EventItem = {
-      id: crypto.randomUUID(),
-      title: parsed.title,
-      start: parsed.start.toISOString(),
-      end: parsed.end?.toISOString(),
+    const inputs: EventInput[] = parsed.events.map((event) => ({
+      title: event.title,
+      start: event.start.toISOString(),
+      end: event.end?.toISOString(),
       category: "Personal",
-    };
+    }));
 
-    addEventHandler(event);
+    if (inputs.length === 1) {
+      addEventHandler(inputs[0]);
+    } else {
+      addEventsHandler(inputs);
+    }
     setMessages((prev) => [
       ...prev,
       { id: crypto.randomUUID(), role: "user", text: value },
       {
         id: crypto.randomUUID(),
         role: "system",
-        text: `Added: ${parsed.title} on ${formatDate(parsed.start, { weekday: "short", month: "short", day: "numeric" })} at ${formatTime(parsed.start)}.`,
+        text:
+          inputs.length === 1
+            ? `Added: ${inputs[0].title} on ${formatDate(new Date(inputs[0].start), { weekday: "short", month: "short", day: "numeric" })} at ${formatTime(new Date(inputs[0].start))}.`
+            : `Added ${inputs.length} events starting ${formatDate(new Date(inputs[0].start), { month: "short", day: "numeric" })}.`,
       },
     ]);
-    const targetDate = startOfDay(parsed.start);
+    const targetDate = startOfDay(new Date(inputs[0].start));
     onDateSelected?.(targetDate);
-    onEventCreated?.(event);
+    onEventCreated?.(inputs[0]);
   };
 
   return (

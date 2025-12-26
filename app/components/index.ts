@@ -10,3 +10,4 @@ export { TasksView } from "./tasks-view";
 export { TodayView } from "./today-view";
 export { ChatInput } from "./chat-input";
 export { ChatLog } from "./chat-log";
+export { ManualEventForm } from "./manual-event-form";

@@ -1,5 +1,70 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export const MONTH_NAME_TO_INDEX: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
+
+export const WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
+  sun: 0,
+  sunday: 0,
+  mon: 1,
+  monday: 1,
+  tue: 2,
+  tues: 2,
+  tuesday: 2,
+  wed: 3,
+  wednesday: 3,
+  thu: 4,
+  thur: 4,
+  thurs: 4,
+  thursday: 4,
+  fri: 5,
+  friday: 5,
+  sat: 6,
+  saturday: 6,
+};
+
+export function getMonthIndex(token: string) {
+  return MONTH_NAME_TO_INDEX[token.toLowerCase()];
+}
+
+export function getWeekdayIndex(token: string) {
+  return WEEKDAY_NAME_TO_INDEX[token.toLowerCase()];
+}
+
+export function buildDateWithYearFallback(monthIndex: number, day: number, reference: Date, explicitYear?: number) {
+  const year = explicitYear ?? reference.getFullYear();
+  const candidate = new Date(year, monthIndex, day);
+  if (explicitYear !== undefined) return candidate;
+  if (startOfDay(candidate) < startOfDay(reference)) {
+    return new Date(year + 1, monthIndex, day);
+  }
+  return candidate;
+}
+
 export function startOfDay(date: Date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);

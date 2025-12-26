@@ -46,10 +46,12 @@ export function useEvents() {
 
   const addEvent = useCallback((input: EventInput) => {
     const newEvent = normalizeEvent({ ...(input as EventItem), id: crypto.randomUUID() });
-    setEvents((prev) => [
-      ...prev,
-      newEvent,
-    ]);
+    setEvents((prev) => [...prev, newEvent]);
+  }, []);
+
+  const addEvents = useCallback((inputs: EventInput[]) => {
+    const normalized = inputs.map((input) => normalizeEvent({ ...(input as EventItem), id: crypto.randomUUID() }));
+    setEvents((prev) => [...prev, ...normalized]);
   }, []);
 
   const updateEvent = useCallback((id: string, partial: Partial<EventItem>) => {
@@ -80,5 +82,5 @@ export function useEvents() {
     }
   }, [replaceAll]);
 
-  return { events, addEvent, updateEvent, deleteEvent, replaceAll, exportEvents, importFromFile } as const;
+  return { events, addEvent, addEvents, updateEvent, deleteEvent, replaceAll, exportEvents, importFromFile } as const;
 }
