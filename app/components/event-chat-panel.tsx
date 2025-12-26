@@ -12,9 +12,11 @@ import type { EventItem } from "@/app/types/event";
 type EventChatPanelProps = {
   focusDate?: Date;
   onDateSelected?: (date: Date) => void;
+  onEventCreated?: (event: EventItem) => void;
+  addEvent?: (event: EventItem) => void;
 };
 
-export function EventChatPanel({ focusDate = new Date(), onDateSelected }: EventChatPanelProps) {
+export function EventChatPanel({ focusDate = new Date(), onDateSelected, onEventCreated, addEvent }: EventChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -22,7 +24,8 @@ export function EventChatPanel({ focusDate = new Date(), onDateSelected }: Event
       text: "Type natural language to add events (e.g. ‘project due tomorrow at 3pm’).",
     },
   ]);
-  const { addEvent } = useEvents();
+  const eventsApi = useEvents();
+  const addEventHandler = addEvent ?? eventsApi.addEvent;
 
   const handleSubmit = (value: string) => {
     const parsed = parseNaturalEvent(value, focusDate);
@@ -47,7 +50,7 @@ export function EventChatPanel({ focusDate = new Date(), onDateSelected }: Event
       category: "Personal",
     };
 
-    addEvent(event);
+    addEventHandler(event);
     setMessages((prev) => [
       ...prev,
       { id: crypto.randomUUID(), role: "user", text: value },
@@ -57,7 +60,9 @@ export function EventChatPanel({ focusDate = new Date(), onDateSelected }: Event
         text: `Added: ${parsed.title} on ${formatDate(parsed.start, { weekday: "short", month: "short", day: "numeric" })} at ${formatTime(parsed.start)}.`,
       },
     ]);
-    onDateSelected?.(startOfDay(parsed.start));
+    const targetDate = startOfDay(parsed.start);
+    onDateSelected?.(targetDate);
+    onEventCreated?.(event);
   };
 
   return (
