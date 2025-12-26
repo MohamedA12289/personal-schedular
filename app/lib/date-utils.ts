@@ -179,3 +179,11 @@ export function getRelativeDayLabel(date: Date) {
   if (diffDays === -1) return "Yesterday";
   return formatDate(date, { weekday: "short", month: "short", day: "numeric" });
 }
+
+export function isLeapYear(year: number) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+export function getYearMonthsMatrix(year: number, weekStartsOn = 0) {
+  return Array.from({ length: 12 }, (_, month) => getMonthMatrix(new Date(year, month, 1), weekStartsOn));
+}

@@ -6,6 +6,14 @@ import type { EventInput, EventItem } from "@/app/types/event";
 
 const STORAGE_KEY = "my-schedule-events";
 
+export function createEventId(): string {
+  const cryptoApi = typeof globalThis !== "undefined" ? (globalThis as { crypto?: Crypto }).crypto : undefined;
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+    return cryptoApi.randomUUID();
+  }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
 function readEvents(): EventItem[] {
   if (typeof window === "undefined") return [];
   try {
@@ -45,12 +53,12 @@ export function useEvents() {
   }, [events]);
 
   const addEvent = useCallback((input: EventInput) => {
-    const newEvent = normalizeEvent({ ...(input as EventItem), id: crypto.randomUUID() });
+    const newEvent = normalizeEvent({ ...(input as EventItem), id: createEventId() });
     setEvents((prev) => [...prev, newEvent]);
   }, []);
 
   const addEvents = useCallback((inputs: EventInput[]) => {
-    const normalized = inputs.map((input) => normalizeEvent({ ...(input as EventItem), id: crypto.randomUUID() }));
+    const normalized = inputs.map((input) => normalizeEvent({ ...(input as EventItem), id: createEventId() }));
     setEvents((prev) => [...prev, ...normalized]);
   }, []);
 

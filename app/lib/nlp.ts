@@ -12,16 +12,17 @@ export type ParsedEvent = {
   title: string;
   start: Date;
   end?: Date;
+  notes?: string;
 };
 
 export type ParsedResult = { events: ParsedEvent[] };
 
-const TOMORROW_WORDS = ["tomorrow", "tmrw", "tmr", "2moro", "2morrow", "tomorow"];
+const TOMORROW_WORDS = ["tomorrow", "tommorow", "tmrw", "tmr", "2moro", "2morrow", "tomorow", "tom", "tmo"];
 const RELATIVE_TIME_PRESETS: { regex: RegExp; hour: number; minute?: number }[] = [
   { regex: /\bthis morning\b/i, hour: 9 },
   // “after lunch” is interpreted as early afternoon by convention.
   { regex: /\b(this afternoon|after lunch)\b/i, hour: 13 },
-  { regex: /\b(this evening|tonight)\b/i, hour: 19 },
+  { regex: /\b(this evening|tonight|tonite|tnite)\b/i, hour: 19 },
   { regex: /\blater today\b/i, hour: 17 },
 ];
 
@@ -97,12 +98,12 @@ function parseDateRange(lower: string, reference: Date) {
     endDate = buildDateWithYearFallback(endMonth, endDay, addDays(reference, 365));
   }
 
-  return { startDate, endDate };
+  return { startDate, endDate, rawText: match[0] };
 }
 
 function extractTitle(input: string) {
   const patterns: RegExp[] = [
-    /\b(?:today|tonight|tomorrow|tmrw|tmr|2moro|2morrow|tomorow)\b/gi,
+    /\b(?:today|tonight|tonite|tnite|tomorrow|tommorow|tmrw|tmr|2moro|2morrow|tomorow|tom|tmo)\b/gi,
     /\b(?:this|next)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\b/gi,
     /\bon\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b/gi,
     /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,?\s*\d{4})?\b/gi,
@@ -131,10 +132,12 @@ export function parseNaturalEvent(text: string, baseDate = new Date()): ParsedRe
 
   const now = baseDate;
   const dateRange = parseDateRange(lower, baseDate);
+  const rangeNote = dateRange ? `Requested range: ${dateRange.rawText.trim()}` : undefined;
 
-  let eventDate: Date | null = dateRange?.startDate ?? null;
+  let eventDate: Date | null = dateRange?.startDate ? startOfDay(dateRange.startDate) : null;
   let defaultHour = 9;
   let defaultMinute = 0;
+  let notes: string | undefined = rangeNote;
 
   // Relative offsets like "in 45 minutes" or "in 2 hours"
   const offsetMatch = lower.match(/\bin\s+(\d+)\s+(minutes?|minute|hours?|hour)\b/);
@@ -180,6 +183,18 @@ export function parseNaturalEvent(text: string, baseDate = new Date()): ParsedRe
     }
   }
 
+  // Simple “every Monday” style repetitions are captured as a note for now
+  if (!eventDate) {
+    const everyWeekday = lower.match(/\bevery\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\b/);
+    if (everyWeekday) {
+      const weekdayIndex = getWeekdayIndex(everyWeekday[1]);
+      if (weekdayIndex !== undefined) {
+        eventDate = startOfDay(getNextWeekday(weekdayIndex, now, "this"));
+        notes = notes ?? `Repeats every ${everyWeekday[1]}`;
+      }
+    }
+  }
+
   // Explicit month names
   if (!eventDate) {
     const explicit = parseExplicitDate(lower, now);
@@ -198,6 +213,9 @@ export function parseNaturalEvent(text: string, baseDate = new Date()): ParsedRe
   }
   if (!eventDate && lower.includes("this weekend")) {
     eventDate = startOfDay(getWeekendDate(now));
+  }
+  if (!eventDate && lower.includes("this week")) {
+    eventDate = startOfWeek(now);
   }
 
   // Fallback to today if nothing else matched
@@ -229,6 +247,10 @@ export function parseNaturalEvent(text: string, baseDate = new Date()): ParsedRe
     }
     const parsedEnd = endTimeText ? parseTimeText(endTimeText) : null;
     if (parsedEnd) {
+      const endHasSuffix = endTimeText ? /(am|pm|a|p)/i.test(endTimeText) : false;
+      if (!endHasSuffix && parsedStart && parsedStart.hours >= parsedEnd.hours) {
+        parsedEnd.hours = (parsedEnd.hours + 12) % 24;
+      }
       endDate = new Date(eventDate);
       endDate.setHours(parsedEnd.hours, parsedEnd.minutes, 0, 0);
     }
@@ -242,24 +264,25 @@ export function parseNaturalEvent(text: string, baseDate = new Date()): ParsedRe
 
   const title = extractTitle(input) || "New event";
 
-  const events: ParsedEvent[] = [];
+  let finalStart = startDate;
+  let finalEnd = endDate;
+
   if (dateRange) {
-    let cursor = startOfDay(dateRange.startDate);
-    const end = startOfDay(dateRange.endDate);
-    let guard = 0;
-    while (cursor <= end && guard < 370) {
-      const dayStart = new Date(cursor);
-      dayStart.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
-      const dayEnd = endDate
-        ? new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), endDate.getHours(), endDate.getMinutes(), 0, 0)
-        : undefined;
-      events.push({ title, start: dayStart, end: dayEnd });
-      cursor = addDays(cursor, 1);
-      guard += 1;
+    const rangeStart = startOfDay(dateRange.startDate);
+    finalStart = new Date(rangeStart);
+    finalStart.setHours(startDate.getHours(), startDate.getMinutes(), 0, 0);
+
+    if (endDate) {
+      finalEnd = new Date(rangeStart);
+      finalEnd.setHours(endDate.getHours(), endDate.getMinutes(), 0, 0);
+    } else if (startTimeText) {
+      finalEnd = new Date(finalStart.getTime() + 60 * 60 * 1000);
     }
-  } else {
-    events.push({ title, start: startDate, end: endDate });
+  } else if (!finalEnd && startTimeText) {
+    finalEnd = new Date(finalStart.getTime() + 60 * 60 * 1000);
   }
+
+  const events: ParsedEvent[] = [{ title, start: finalStart, end: finalEnd, notes }];
 
   // Examples (documentation only):
   // - "tmrw at 7 pm homework" => tomorrow 19:00
@@ -267,7 +290,7 @@ export function parseNaturalEvent(text: string, baseDate = new Date()): ParsedRe
   // - "this evening gym" => today 19:00
   // - "next Friday at noon project review" => next Friday 12:00
   // - "in 2 hours file taxes" => base date +2h
-  // - "math class from 4 to 6 from december 25 to february 24" => daily 4–6 across the range
+  // - "math class from 4 to 6 from december 25 to february 24" => single event on Dec 25 with range noted
 
   return { events };
 }

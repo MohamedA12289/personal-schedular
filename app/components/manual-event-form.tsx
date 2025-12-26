@@ -47,7 +47,7 @@ export function ManualEventForm({ selectedDate, onAdd, onDateChange }: ManualEve
     if (isSaveDisabled) return;
 
     const start = new Date(`${dateValue}T${startTime}`);
-    const end = endTime ? new Date(`${dateValue}T${endTime}`) : undefined;
+    const end = endTime ? new Date(`${dateValue}T${endTime}`) : new Date(start.getTime() + 60 * 60 * 1000);
 
     if (end && end < start) {
       setStatus("End time must be after the start time.");

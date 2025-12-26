@@ -34,11 +34,11 @@ npm run build
 
 ## Features
 
-- **Views:** Calendar (month/week), Day timeline with "Now" indicator, Tasks/List, Settings.
+- **Views:** Calendar (month/week/year), Day timeline with "Now" indicator, Tasks/List, Settings.
 - **Natural language chat:** understands phrases like `math test at 7 pm Thursday`, `tmrw 3pm dentist`,
-  `this evening gym`, `in 2 hours finish report`, `after lunch sync`, `gym from 5 to 7 from jan 3 to mar 10`,
+  `tonite gym`, `in 2 hours finish report`, `after lunch sync`, `math class from 4 to 6 from dec 25 to feb 24` (range noted),
   and shorthand months/weekdays (`mon`, `tues`, `sept`, `dec`).
-- **Manual add panel:** create events/tasks with title, date, start/end time, category (School/Work/Gym/Money/Personal/Business/Other),
+- **Manual add panel:** create events/tasks with title, date, start/end time (defaults to one hour), category (School/Work/Gym/Money/Personal/Business/Other),
   optional reminders, and notes.
 - **Local-first data:** events stay in `localStorage` so they persist offline and across reloads.
 - **Reminders:** enable notifications in Settings to schedule local reminders (device/PWA must be open or
@@ -52,7 +52,7 @@ npm run build
 
 To learn more about Next.js, take a look at the following resources:
 - Switch views with `TabNavigation` plus `CalendarView`, `DayView`, `TasksView`, and `SettingsView`.
-- Add events through `EventChatPanel`, the manual form, or wire `ChatInput` with `parseNaturalEvent` to feed the `useEvents` store (date ranges will return multiple events).
+- Add events through `EventChatPanel`, the manual form, or wire `ChatInput` with `parseNaturalEvent` to feed the `useEvents` store (date-range phrases are noted on the event for now).
 - Export/Import via `SettingsView` to download a JSON backup or restore one (import replaces local data).
 - Install as a PWA: Safari on iPhone → **Add to Home Screen**; desktop browsers → **Install** from the address bar.
 

@@ -5,12 +5,13 @@ export default function Home() {
 import { useMemo, useState } from "react";
 
 import { TabNavigation, TabDefinition, TabKey } from "@/app/components/tab-navigation";
-import { useEvents } from "@/app/hooks/use-events";
+import { createEventId, useEvents } from "@/app/hooks/use-events";
 import {
   formatDate,
   formatTime,
   getMonthMatrix,
   getWeekForDate,
+  getYearMonthsMatrix,
   isSameDay,
   startOfDay,
 } from "@/app/lib/date-utils";
@@ -67,12 +68,6 @@ function HeaderBar({ focusDate }: { focusDate: Date }) {
           <p className="text-xs uppercase tracking-[0.12em] text-slate-500">My personal shiesty planner</p>
           <h1 className="text-2xl font-semibold text-slate-900">Local-first planning assistant</h1>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
       </div>
       <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
         <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
@@ -94,15 +89,37 @@ function CalendarView({
   viewDate: Date;
   selectedDate: Date;
   events: EventItem[];
-  mode: "month" | "week";
+  mode: "month" | "week" | "year";
   onSelectDate: (date: Date) => void;
-  onChangeMonth: (direction: -1 | 1) => void;
-  onModeChange: (mode: "month" | "week") => void;
+  onChangeMonth: (direction: -1 | 1, span?: "month" | "year") => void;
+  onModeChange: (mode: "month" | "week" | "year") => void;
 }) {
   const weeks = useMemo(() => {
     if (mode === "week") return [getWeekForDate(selectedDate)];
-    return getMonthMatrix(viewDate);
+    if (mode === "month") return getMonthMatrix(viewDate);
+    return [];
   }, [mode, selectedDate, viewDate]);
+
+  const yearMonths = useMemo(() => {
+    if (mode !== "year") return [] as Date[][][];
+    return getYearMonthsMatrix(viewDate.getFullYear());
+  }, [mode, viewDate]);
+
+  const eventCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    events.forEach((event) => {
+      const key = startOfDay(new Date(event.start)).toISOString();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return counts;
+  }, [events]);
+
+  const handleSelect = (day: Date) => {
+    onSelectDate(startOfDay(day));
+    if (mode === "year") {
+      onModeChange("month");
+    }
+  };
 
   const eventsForSelected = events
     .filter((event) => isSameDay(new Date(event.start), selectedDate))
@@ -113,8 +130,18 @@ function CalendarView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.16em] text-slate-400">Calendar</p>
-          <h2 className="text-2xl font-semibold text-slate-900">{formatDate(viewDate, { month: "long", year: "numeric" })}</h2>
+          <h2 className="text-2xl font-semibold text-slate-900">
+            {mode === "year"
+              ? viewDate.getFullYear()
+              : formatDate(viewDate, { month: "long", year: "numeric" })}
+          </h2>
         </div>
+        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+          <a
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
+            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -132,6 +159,29 @@ function CalendarView({
               mode === "week" ? "bg-teal-500 text-white" : "bg-white text-slate-700 shadow-sm"
             }`}
           >
+            Week
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("year")}
+            className={`rounded-full px-3 py-2 text-sm font-medium transition ${
+              mode === "year" ? "bg-teal-500 text-white" : "bg-white text-slate-700 shadow-sm"
+            }`}
+          >
+            Year
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeMonth(-1, mode === "year" ? "year" : "month")}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => onChangeMonth(1, mode === "year" ? "year" : "month")}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
+          >
             <Image
               className="dark:invert"
               src="/vercel.svg"
@@ -146,20 +196,6 @@ function CalendarView({
             href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
             target="_blank"
             rel="noopener noreferrer"
-            Week
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeMonth(-1)}
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
-          >
-            Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeMonth(1)}
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-teal-200 hover:text-teal-700"
-          >
             Next
           </button>
           <button
@@ -172,43 +208,96 @@ function CalendarView({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
-          <div key={label} className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            {label}
-          </div>
-        ))}
-        {weeks.map((week, idx) => (
-          <div key={idx} className="contents">
-            {week.map((day) => {
-              const isToday = isSameDay(day, new Date());
-              const isSelected = isSameDay(day, selectedDate);
-              const dayEvents = events.filter((event) => isSameDay(new Date(event.start), day));
-              return (
-                <button
-                  key={day.toISOString()}
-                  type="button"
-                  onClick={() => onSelectDate(startOfDay(day))}
-                  className={`relative flex h-16 flex-col items-center justify-center rounded-xl border text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 ${
-                    isSelected
-                      ? "border-teal-500 bg-gradient-to-br from-teal-50 to-emerald-50 text-teal-800 shadow"
-                      : "border-gray-200 bg-white text-slate-700 hover:border-teal-200"
-                  }`}
-                  aria-current={isToday ? "date" : undefined}
-                >
-                  <span className="text-base font-semibold">{day.getDate()}</span>
-                  {isToday && <span className="text-[10px] font-semibold text-teal-600">Today</span>}
-                  {dayEvents.length > 0 && (
-                    <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-600">
-                      ● {dayEvents.length}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </div>
+      {mode !== "year" ? (
+        <div className="grid grid-cols-7 gap-2 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
+            <div key={label} className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              {label}
+            </div>
+          ))}
+          {weeks.map((week, idx) => (
+            <div key={idx} className="contents">
+              {week.map((day) => {
+                const isToday = isSameDay(day, new Date());
+                const isSelected = isSameDay(day, selectedDate);
+                const count = eventCounts.get(startOfDay(day).toISOString()) ?? 0;
+                return (
+                  <button
+                    key={day.toISOString()}
+                    type="button"
+                    onClick={() => handleSelect(day)}
+                    className={`relative flex h-16 flex-col items-center justify-center rounded-xl border text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 ${
+                      isSelected
+                        ? "border-teal-500 bg-gradient-to-br from-teal-50 to-emerald-50 text-teal-800 shadow"
+                        : "border-gray-200 bg-white text-slate-700 hover:border-teal-200"
+                    }`}
+                    aria-current={isToday ? "date" : undefined}
+                  >
+                    <span className="text-base font-semibold">{day.getDate()}</span>
+                    {isToday && <span className="text-[10px] font-semibold text-teal-600">Today</span>}
+                    {count > 0 && (
+                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-600">
+                        ● {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {yearMonths.map((monthWeeks, monthIndex) => {
+            const monthDate = new Date(viewDate.getFullYear(), monthIndex, 1);
+            return (
+              <div key={monthIndex} className="space-y-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800">
+                    {formatDate(monthDate, { month: "long", year: "numeric" })}
+                  </h3>
+                  <span className="text-[11px] font-semibold text-slate-500">{monthDate.getFullYear()}</span>
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-[11px] text-slate-500">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
+                    <div key={label} className="text-center uppercase">
+                      {label[0]}
+                    </div>
+                  ))}
+                  {monthWeeks.map((week, idx) => (
+                    <div key={idx} className="contents">
+                      {week.map((day) => {
+                        const isCurrentMonth = day.getMonth() === monthIndex;
+                        const isToday = isSameDay(day, new Date());
+                        const isSelected = isSameDay(day, selectedDate);
+                        const count = eventCounts.get(startOfDay(day).toISOString()) ?? 0;
+                        return (
+                          <button
+                            key={day.toISOString()}
+                            type="button"
+                            onClick={() => handleSelect(day)}
+                            className={`flex h-10 flex-col items-center justify-center rounded-lg border text-[11px] transition ${
+                              isSelected
+                                ? "border-teal-500 bg-emerald-50 text-teal-800 shadow"
+                                : isCurrentMonth
+                                  ? "border-gray-200 bg-white text-slate-700 hover:border-teal-200"
+                                  : "border-transparent bg-slate-50 text-slate-400"
+                            }`}
+                            aria-current={isToday ? "date" : undefined}
+                          >
+                            <span className="font-semibold">{day.getDate()}</span>
+                            {count > 0 && <span className="text-[9px] text-purple-600">● {count}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70">
         <h3 className="text-sm font-semibold text-slate-800">
@@ -330,7 +419,6 @@ function ChatInput({
             Add
           </button>
         </div>
-      </main>
       </div>
     </div>
   );
@@ -340,7 +428,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [viewDate, setViewDate] = useState(startOfDay(new Date()));
-  const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
+  const [calendarMode, setCalendarMode] = useState<"month" | "week" | "year">("month");
   const [messages, setMessages] = useState<{ id: string; role: "system" | "user"; text: string }[]>([
     {
       id: "welcome",
@@ -361,10 +449,14 @@ export default function Home() {
     setViewDate(startOfDay(date));
   };
 
-  const handleChangeMonth = (direction: -1 | 1) => {
+  const handleChangeMonth = (direction: -1 | 1, span: "month" | "year" = "month") => {
     const next = new Date(viewDate);
-    next.setMonth(viewDate.getMonth() + direction);
-    setViewDate(next);
+    if (span === "year") {
+      next.setFullYear(viewDate.getFullYear() + direction);
+    } else {
+      next.setMonth(viewDate.getMonth() + direction);
+    }
+    setViewDate(startOfDay(next));
   };
 
   const handleNaturalSubmit = (value: string) => {
@@ -372,8 +464,8 @@ export default function Home() {
     if (!parsed || parsed.events.length === 0) {
       setMessages((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), role: "user", text: value },
-        { id: crypto.randomUUID(), role: "system", text: "I couldn’t understand that. Try ‘math test at 7 pm Thursday’." },
+        { id: createEventId(), role: "user", text: value },
+        { id: createEventId(), role: "system", text: "I couldn’t understand that. Try ‘math test at 7 pm Thursday’." },
       ]);
       return;
     }
@@ -382,6 +474,7 @@ export default function Home() {
       title: event.title,
       start: event.start.toISOString(),
       end: event.end?.toISOString(),
+      notes: event.notes,
       category: "Personal",
     }));
 
@@ -399,8 +492,8 @@ export default function Home() {
 
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), role: "user", text: value },
-      { id: crypto.randomUUID(), role: "system", text: addedText },
+      { id: createEventId(), role: "user", text: value },
+      { id: createEventId(), role: "system", text: addedText },
     ]);
     setSelectedDate(startOfDay(first.start));
     setViewDate(startOfDay(first.start));
@@ -452,6 +545,7 @@ export default function Home() {
             )}
           </main>
         </div>
+      </main>
 
         <ManualEventForm
           selectedDate={selectedDate}
