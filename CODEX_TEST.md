@@ -41,3 +41,9 @@ Backup export/import checks:
 - Use Import (Merge) on that file; verify event/task counts remain and no duplicates are added.
 - Use Import (Replace) on an edited file; ensure existing events/tasks are overwritten with the file contents.
 - Invalid JSON should surface a friendly inline message instead of crashing.
+
+PWA install + connectivity checks:
+- Load the app in Chrome; when the browser surfaces the install prompt, the header should show an "Install app" pill.
+- Click Install app, accept the prompt, and confirm the button disappears afterward.
+- Toggle network offline in DevTools and refresh: header pill switches to Offline and the app shell still renders.
+- Restore connectivity; pill returns to Online automatically.

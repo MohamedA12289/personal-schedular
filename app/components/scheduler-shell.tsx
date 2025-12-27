@@ -10,6 +10,7 @@ import { TabNavigation, type TabDefinition, type TabKey } from "@/app/components
 import { TasksView } from "@/app/components/tasks-view";
 import { TodayView } from "@/app/components/today-view";
 import { useEvents } from "@/app/hooks/use-events";
+import { usePwaStatus } from "@/app/hooks/use-pwa-status";
 import { formatDate, startOfDay } from "@/app/lib/date-utils";
 
 const TABS: TabDefinition[] = [
@@ -20,6 +21,8 @@ const TABS: TabDefinition[] = [
 ];
 
 function HeaderBar({ focusDate }: { focusDate: Date }) {
+  const { isOnline, installAvailable, promptInstall } = usePwaStatus();
+
   return (
     <header className="flex flex-col gap-2 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
@@ -31,9 +34,34 @@ function HeaderBar({ focusDate }: { focusDate: Date }) {
           <h1 className="text-2xl font-semibold text-slate-900">Local-first planning assistant</h1>
         </div>
       </div>
-      <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
-        <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
-        <span>{formatDate(focusDate, { weekday: "long", month: "long", day: "numeric" })}</span>
+      <div className="flex flex-col items-end gap-2 sm:items-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <span
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+              isOnline ? "bg-emerald-50 text-emerald-700" : "bg-slate-200 text-slate-600"
+            }`}
+            aria-live="polite"
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-slate-400"}`}
+              aria-hidden
+            />
+            {isOnline ? "Online" : "Offline"}
+          </span>
+          {installAvailable && (
+            <button
+              type="button"
+              onClick={promptInstall}
+              className="inline-flex items-center gap-2 rounded-full bg-teal-500 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            >
+              Install app
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
+          <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
+          <span>{formatDate(focusDate, { weekday: "long", month: "long", day: "numeric" })}</span>
+        </div>
       </div>
     </header>
   );
