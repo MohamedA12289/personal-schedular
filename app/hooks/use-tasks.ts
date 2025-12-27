@@ -14,6 +14,16 @@ type TaskInput = {
   dueDate?: string;
 };
 
+function normalizeOrder(tasks: TaskItem[]): TaskItem[] {
+  return tasks
+    .map((task, index) => ({
+      ...task,
+      order: Number.isFinite(task.order) ? task.order : index,
+    }))
+    .sort((a, b) => a.order - b.order)
+    .map((task, index) => ({ ...task, order: index }));
+}
+
 function readTasks(): TaskItem[] {
   if (typeof window === "undefined") return [];
   try {
@@ -21,12 +31,14 @@ function readTasks(): TaskItem[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed
+    const cleaned = parsed
       .filter((task): task is TaskItem => typeof task?.id === "string" && typeof task?.title === "string")
       .map((task) => ({
         ...task,
         dayKey: typeof task.dayKey === "string" && task.dayKey ? task.dayKey : localDayKey(new Date(task.createdAt ?? Date.now())),
       }));
+
+    return normalizeOrder(cleaned);
   } catch (error) {
     console.error("Failed to read tasks", error);
     return [];
@@ -52,15 +64,19 @@ export function useTasks() {
   const addTask = useCallback((input: TaskInput) => {
     const trimmed = input.title.trim();
     if (!trimmed) return;
-    const task: TaskItem = {
-      id: createEventId(),
-      title: trimmed,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      dayKey: input.dayKey,
-      dueDate: input.dueDate,
-    };
-    setTasks((prev) => [task, ...prev]);
+    setTasks((prev) => {
+      const nextOrder = prev.length ? Math.min(...prev.map((task) => task.order ?? 0)) - 1 : 0;
+      const task: TaskItem = {
+        id: createEventId(),
+        title: trimmed,
+        completed: false,
+        createdAt: new Date().toISOString(),
+        dayKey: input.dayKey,
+        dueDate: input.dueDate,
+        order: nextOrder,
+      };
+      return normalizeOrder([task, ...prev]);
+    });
   }, []);
 
   const toggleTask = useCallback((id: string) => {
@@ -79,5 +95,28 @@ export function useTasks() {
     setTasks((prev) => prev.filter((task) => !task.completed));
   }, []);
 
-  return { tasks, addTask, toggleTask, deleteTask, clearCompleted, updateTask } as const;
+  const reorderTasks = useCallback((orderedIds: string[]) => {
+    setTasks((prev) => {
+      if (!orderedIds.length) return prev;
+      const lookup = new Map(prev.map((task) => [task.id, task] as const));
+      const reordered: TaskItem[] = [];
+
+      orderedIds.forEach((id, index) => {
+        const existing = lookup.get(id);
+        if (existing) {
+          reordered.push({ ...existing, order: index });
+          lookup.delete(id);
+        }
+      });
+
+      const remaining = Array.from(lookup.values()).map((task, index) => ({
+        ...task,
+        order: orderedIds.length + index,
+      }));
+
+      return [...reordered, ...remaining];
+    });
+  }, []);
+
+  return { tasks, addTask, toggleTask, deleteTask, clearCompleted, updateTask, reorderTasks } as const;
 }

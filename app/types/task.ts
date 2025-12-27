@@ -5,4 +5,5 @@ export type TaskItem = {
   createdAt: string;
   dayKey: string;
   dueDate?: string;
+  order: number;
 };

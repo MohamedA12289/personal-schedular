@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 
 import { useTasks } from "@/app/hooks/use-tasks";
@@ -22,13 +22,14 @@ function filterTasks(tasks: TaskItem[], filter: FilterKey) {
 }
 
 export function TasksView({ selectedDate }: { selectedDate: Date }) {
-  const { tasks, addTask, toggleTask, deleteTask, clearCompleted, updateTask } = useTasks();
+  const { tasks, addTask, toggleTask, deleteTask, clearCompleted, updateTask, reorderTasks } = useTasks();
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [scope, setScope] = useState<"selected" | "all">("selected");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const currentDayKey = useMemo(() => localDayKey(selectedDate), [selectedDate]);
 
@@ -36,6 +37,15 @@ export function TasksView({ selectedDate }: { selectedDate: Date }) {
     const base = scope === "selected" ? tasks.filter((task) => task.dayKey === currentDayKey) : tasks;
     return filterTasks(base, filter);
   }, [currentDayKey, filter, scope, tasks]);
+
+  const displayTasks = useMemo(
+    () =>
+      [...scopedTasks].sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }),
+    [scopedTasks],
+  );
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -68,6 +78,27 @@ export function TasksView({ selectedDate }: { selectedDate: Date }) {
       setEditingId(null);
     }
   };
+
+  const handleDragStart = useCallback((id: string) => {
+    setDraggingId(id);
+  }, []);
+
+  const handleDrop = useCallback(
+    (targetId: string) => {
+      if (!draggingId || draggingId === targetId) return;
+      const fromIndex = displayTasks.findIndex((task) => task.id === draggingId);
+      const toIndex = displayTasks.findIndex((task) => task.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return;
+      const reordered = [...displayTasks];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+      reorderTasks(reordered.map((task) => task.id));
+      setDraggingId(null);
+    },
+    [displayTasks, draggingId, reorderTasks],
+  );
+
+  const handleDragEnd = useCallback(() => setDraggingId(null), []);
 
   return (
     <section className="space-y-4" aria-label="Tasks">
@@ -159,15 +190,27 @@ export function TasksView({ selectedDate }: { selectedDate: Date }) {
         </div>
 
         <div className="mt-4 space-y-2">
-          {scopedTasks.length === 0 ? (
+          {displayTasks.length === 0 ? (
             <p className="text-sm text-slate-500">No tasks yet. Add one to get started.</p>
           ) : (
-            scopedTasks.map((task) => (
+            displayTasks.map((task) => (
               <article
                 key={task.id}
                 className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => handleDrop(task.id)}
               >
                 <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="cursor-grab rounded-md px-1 py-1 text-slate-400 transition hover:text-teal-600"
+                    draggable
+                    aria-label={`Reorder task ${task.title}`}
+                    onDragStart={() => handleDragStart(task.id)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    ☰
+                  </button>
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"

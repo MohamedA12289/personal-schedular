@@ -34,3 +34,4 @@ Tasks per-day checks:
 - In the Tasks tab, new items default to the currently selected day; toggle between Selected Day and All to verify scoping.
 - Set an optional due date in the add form; edit titles inline by clicking them (Enter to save, Esc to cancel).
 - Update due dates via the date picker in each row; completion toggle and delete should persist after refresh.
+- Reorder tasks by dragging the handle (☰) within the visible list; drop to new position and refresh to confirm order persistence.
