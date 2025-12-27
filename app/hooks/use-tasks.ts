@@ -3,9 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { createEventId } from "@/app/hooks/use-events";
+import { localDayKey } from "@/app/lib/date-utils";
 import type { TaskItem } from "@/app/types/task";
 
 const STORAGE_KEY = "my-schedule-tasks";
+
+type TaskInput = {
+  title: string;
+  dayKey: string;
+  dueDate?: string;
+};
 
 function readTasks(): TaskItem[] {
   if (typeof window === "undefined") return [];
@@ -14,7 +21,12 @@ function readTasks(): TaskItem[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((task): task is TaskItem => typeof task?.id === "string" && typeof task?.title === "string");
+    return parsed
+      .filter((task): task is TaskItem => typeof task?.id === "string" && typeof task?.title === "string")
+      .map((task) => ({
+        ...task,
+        dayKey: typeof task.dayKey === "string" && task.dayKey ? task.dayKey : localDayKey(new Date(task.createdAt ?? Date.now())),
+      }));
   } catch (error) {
     console.error("Failed to read tasks", error);
     return [];
@@ -37,14 +49,16 @@ export function useTasks() {
     writeTasks(tasks);
   }, [tasks]);
 
-  const addTask = useCallback((title: string) => {
-    const trimmed = title.trim();
+  const addTask = useCallback((input: TaskInput) => {
+    const trimmed = input.title.trim();
     if (!trimmed) return;
     const task: TaskItem = {
       id: createEventId(),
       title: trimmed,
       completed: false,
       createdAt: new Date().toISOString(),
+      dayKey: input.dayKey,
+      dueDate: input.dueDate,
     };
     setTasks((prev) => [task, ...prev]);
   }, []);
@@ -57,5 +71,13 @@ export function useTasks() {
     setTasks((prev) => prev.filter((task) => task.id !== id));
   }, []);
 
-  return { tasks, addTask, toggleTask, deleteTask } as const;
+  const updateTask = useCallback((id: string, updates: Partial<Omit<TaskItem, "id" | "createdAt">>) => {
+    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, ...updates } : task)));
+  }, []);
+
+  const clearCompleted = useCallback(() => {
+    setTasks((prev) => prev.filter((task) => !task.completed));
+  }, []);
+
+  return { tasks, addTask, toggleTask, deleteTask, clearCompleted, updateTask } as const;
 }

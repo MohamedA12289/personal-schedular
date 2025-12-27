@@ -1,9 +1,6 @@
-// app/page.tsx
 "use client";
 
-import { TasksView } from "@/app/components/tasks-view";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 
 import { TabNavigation, TabDefinition, TabKey } from "@/app/components/tab-navigation";
 import { createEventId, useEvents } from "@/app/hooks/use-events";
@@ -14,13 +11,12 @@ import {
   getWeekForDate,
   getYearMonthsMatrix,
   isSameDay,
-  localDayKey,
   startOfDay,
 } from "@/app/lib/date-utils";
 import { parseNaturalEvent } from "@/app/lib/nlp";
 import type { EventInput, EventItem } from "@/app/types/event";
 import { ManualEventForm } from "@/app/components/manual-event-form";
-import { supabase } from "@/app/lib/supabase/client";
+import { TasksView } from "@/app/components/tasks-view";
 
 const TABS: TabDefinition[] = [
   { key: "today", label: "Today" },
@@ -29,13 +25,7 @@ const TABS: TabDefinition[] = [
   { key: "settings", label: "Settings" },
 ];
 
-function HeaderBar({
-  focusDate,
-  onLogout,
-}: {
-  focusDate: Date;
-  onLogout: () => void;
-}) {
+function HeaderBar({ focusDate }: { focusDate: Date }) {
   return (
     <header className="flex flex-col gap-2 rounded-2xl bg-white p-4 shadow-sm shadow-slate-200/70 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
@@ -47,20 +37,9 @@ function HeaderBar({
           <h1 className="text-2xl font-semibold text-slate-900">Local-first planning assistant</h1>
         </div>
       </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
-          <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
-          <span>{formatDate(focusDate, { weekday: "long", month: "long", day: "numeric" })}</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={onLogout}
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-teal-200 hover:text-teal-700"
-        >
-          Log out
-        </button>
+      <div className="flex items-center gap-3 rounded-full bg-slate-900 px-4 py-2 text-sm text-white shadow-md">
+        <span className="h-2 w-2 rounded-full bg-emerald-300" aria-hidden />
+        <span>{formatDate(focusDate, { weekday: "long", month: "long", day: "numeric" })}</span>
       </div>
     </header>
   );
@@ -94,11 +73,10 @@ function CalendarView({
     return getYearMonthsMatrix(viewDate.getFullYear());
   }, [mode, viewDate]);
 
-  // ✅ FIX: local-day keys (YYYY-MM-DD) so timezone don’t shift counts to next/prev day
   const eventCounts = useMemo(() => {
     const counts = new Map<string, number>();
     events.forEach((event) => {
-      const key = localDayKey(new Date(event.start));
+      const key = startOfDay(new Date(event.start)).toISOString();
       counts.set(key, (counts.get(key) ?? 0) + 1);
     });
     return counts;
@@ -106,7 +84,9 @@ function CalendarView({
 
   const handleSelect = (day: Date) => {
     onSelectDate(startOfDay(day));
-    if (mode === "year") onModeChange("month");
+    if (mode === "year") {
+      onModeChange("month");
+    }
   };
 
   const eventsForSelected = events
@@ -119,10 +99,11 @@ function CalendarView({
         <div>
           <p className="text-sm uppercase tracking-[0.16em] text-slate-400">Calendar</p>
           <h2 className="text-2xl font-semibold text-slate-900">
-            {mode === "year" ? viewDate.getFullYear() : formatDate(viewDate, { month: "long", year: "numeric" })}
+            {mode === "year"
+              ? viewDate.getFullYear()
+              : formatDate(viewDate, { month: "long", year: "numeric" })}
           </h2>
         </div>
-
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -151,7 +132,6 @@ function CalendarView({
           >
             Year
           </button>
-
           <button
             type="button"
             onClick={() => onChangeMonth(-1, mode === "year" ? "year" : "month")}
@@ -183,14 +163,12 @@ function CalendarView({
               {label}
             </div>
           ))}
-
           {weeks.map((week, idx) => (
             <div key={idx} className="contents">
               {week.map((day) => {
                 const isToday = isSameDay(day, new Date());
                 const isSelected = isSameDay(day, selectedDate);
-                const count = eventCounts.get(localDayKey(day)) ?? 0;
-
+                const count = eventCounts.get(startOfDay(day).toISOString()) ?? 0;
                 return (
                   <button
                     key={day.toISOString()}
@@ -220,7 +198,6 @@ function CalendarView({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {yearMonths.map((monthWeeks, monthIndex) => {
             const monthDate = new Date(viewDate.getFullYear(), monthIndex, 1);
-
             return (
               <div key={monthIndex} className="space-y-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
                 <div className="flex items-center justify-between">
@@ -229,22 +206,19 @@ function CalendarView({
                   </h3>
                   <span className="text-[11px] font-semibold text-slate-500">{monthDate.getFullYear()}</span>
                 </div>
-
                 <div className="grid grid-cols-7 gap-1 text-[11px] text-slate-500">
                   {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
                     <div key={label} className="text-center uppercase">
                       {label[0]}
                     </div>
                   ))}
-
                   {monthWeeks.map((week, idx) => (
                     <div key={idx} className="contents">
                       {week.map((day) => {
                         const isCurrentMonth = day.getMonth() === monthIndex;
                         const isToday = isSameDay(day, new Date());
                         const isSelected = isSameDay(day, selectedDate);
-                        const count = eventCounts.get(localDayKey(day)) ?? 0;
-
+                        const count = eventCounts.get(startOfDay(day).toISOString()) ?? 0;
                         return (
                           <button
                             key={day.toISOString()}
@@ -254,8 +228,8 @@ function CalendarView({
                               isSelected
                                 ? "border-teal-500 bg-emerald-50 text-teal-800 shadow"
                                 : isCurrentMonth
-                                ? "border-gray-200 bg-white text-slate-700 hover:border-teal-200"
-                                : "border-transparent bg-slate-50 text-slate-400"
+                                  ? "border-gray-200 bg-white text-slate-700 hover:border-teal-200"
+                                  : "border-transparent bg-slate-50 text-slate-400"
                             }`}
                             aria-current={isToday ? "date" : undefined}
                           >
@@ -277,16 +251,12 @@ function CalendarView({
         <h3 className="text-sm font-semibold text-slate-800">
           Events on {formatDate(selectedDate, { weekday: "long", month: "short", day: "numeric" })}
         </h3>
-
         {eventsForSelected.length === 0 ? (
           <p className="text-sm text-slate-500">No events yet for this day.</p>
         ) : (
           <div className="space-y-2">
             {eventsForSelected.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm"
-              >
+              <div key={event.id} className="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{event.title}</p>
                   <p className="text-xs text-slate-500">
@@ -294,9 +264,7 @@ function CalendarView({
                     {event.end ? ` – ${formatTime(new Date(event.end))}` : ""}
                   </p>
                 </div>
-                <span className="rounded-full bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-700">
-                  {event.category ?? "Personal"}
-                </span>
+                <span className="rounded-full bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-700">{event.category ?? "Personal"}</span>
               </div>
             ))}
           </div>
@@ -319,17 +287,10 @@ function TodayPlaceholder({ todayEvents }: { todayEvents: EventItem[] }) {
             {todayEvents.length} event{todayEvents.length === 1 ? "" : "s"}
           </span>
         </div>
-
         <div className="mt-3 space-y-2">
-          {todayEvents.length === 0 && (
-            <p className="text-sm text-slate-500">Nothing scheduled yet. Try adding one from the chat bar below.</p>
-          )}
-
+          {todayEvents.length === 0 && <p className="text-sm text-slate-500">Nothing scheduled yet. Try adding one from the chat bar below.</p>}
           {todayEvents.map((event) => (
-            <div
-              key={event.id}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50 px-3 py-2"
-            >
+            <div key={event.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50 px-3 py-2">
               <div>
                 <p className="text-sm font-semibold text-slate-900">{event.title}</p>
                 <p className="text-xs text-slate-600">{formatTime(new Date(event.start))}</p>
@@ -363,13 +324,11 @@ function ChatInput({
   messages: { id: string; role: "system" | "user"; text: string }[];
 }) {
   const [value, setValue] = useState("");
-
   const handleSend = () => {
     if (!value.trim()) return;
     onSubmit(value);
     setValue("");
   };
-
   return (
     <div className="sticky bottom-0 mt-6 rounded-2xl bg-white p-4 shadow-lg shadow-slate-300/50">
       <div className="space-y-2">
@@ -385,7 +344,6 @@ function ChatInput({
             </div>
           ))}
         </div>
-
         <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-slate-50 px-3 py-2 shadow-inner">
           <input
             value={value}
@@ -413,14 +371,6 @@ function ChatInput({
 }
 
 export default function Home() {
-  const router = useRouter();
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.replace("/login");
-    });
-  }, [router]);
-
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [viewDate, setViewDate] = useState(startOfDay(new Date()));
@@ -447,14 +397,16 @@ export default function Home() {
 
   const handleChangeMonth = (direction: -1 | 1, span: "month" | "year" = "month") => {
     const next = new Date(viewDate);
-    if (span === "year") next.setFullYear(viewDate.getFullYear() + direction);
-    else next.setMonth(viewDate.getMonth() + direction);
+    if (span === "year") {
+      next.setFullYear(viewDate.getFullYear() + direction);
+    } else {
+      next.setMonth(viewDate.getMonth() + direction);
+    }
     setViewDate(startOfDay(next));
   };
 
   const handleNaturalSubmit = (value: string) => {
     const parsed = parseNaturalEvent(value, selectedDate);
-
     if (!parsed || parsed.events.length === 0) {
       setMessages((prev) => [
         ...prev,
@@ -472,8 +424,11 @@ export default function Home() {
       category: "Personal",
     }));
 
-    if (inputs.length === 1) addEvent(inputs[0]);
-    else addEvents(inputs);
+    if (inputs.length === 1) {
+      addEvent(inputs[0]);
+    } else {
+      addEvents(inputs);
+    }
 
     const first = parsed.events[0];
     const addedText =
@@ -486,7 +441,6 @@ export default function Home() {
       { id: createEventId(), role: "user", text: value },
       { id: createEventId(), role: "system", text: addedText },
     ]);
-
     setSelectedDate(startOfDay(first.start));
     setViewDate(startOfDay(first.start));
     setActiveTab("calendar");
@@ -500,22 +454,16 @@ export default function Home() {
     setActiveTab("calendar");
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 text-slate-900">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 pb-24 pt-6">
-        <HeaderBar focusDate={selectedDate} onLogout={handleLogout} />
+        <HeaderBar focusDate={selectedDate} />
 
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-md shadow-slate-200/70">
           <TabNavigation tabs={TABS} activeTab={activeTab} onSelect={setActiveTab} />
 
           <main className="space-y-6 p-4 sm:p-6" aria-live="polite">
             {activeTab === "today" && <TodayPlaceholder todayEvents={todayEvents} />}
-
             {activeTab === "calendar" && (
               <CalendarView
                 viewDate={viewDate}
@@ -527,10 +475,9 @@ export default function Home() {
                 onModeChange={setCalendarMode}
               />
             )}
-
-            {/* ✅ FIX: actually render TasksView (not placeholder) */}
-            {activeTab === "tasks" && <TasksView />}
-
+            {activeTab === "tasks" && (
+              <TasksView selectedDate={selectedDate} />
+            )}
             {activeTab === "settings" && (
               <PlaceholderCard
                 title="Settings"

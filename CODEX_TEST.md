@@ -29,3 +29,8 @@ Realtime sync notes:
   `postgres_changes` on `public.events` filtered by `user_id`.
 - Publications: add `events` to the `supabase_realtime` publication; RLS must limit access to the current user.
 - Local-only mode remains the fallback if Supabase is unreachable or no session token exists.
+
+Tasks per-day checks:
+- In the Tasks tab, new items default to the currently selected day; toggle between Selected Day and All to verify scoping.
+- Set an optional due date in the add form; edit titles inline by clicking them (Enter to save, Esc to cancel).
+- Update due dates via the date picker in each row; completion toggle and delete should persist after refresh.

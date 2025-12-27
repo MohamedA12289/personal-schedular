@@ -3,4 +3,6 @@ export type TaskItem = {
   title: string;
   completed: boolean;
   createdAt: string;
+  dayKey: string;
+  dueDate?: string;
 };

@@ -87,7 +87,7 @@ export function SchedulerShell() {
               </div>
             )}
 
-            {activeTab === "tasks" && <TasksView />}
+            {activeTab === "tasks" && <TasksView selectedDate={selectedDate} />}
             {activeTab === "settings" && <SettingsView />}
           </main>
         </div>
