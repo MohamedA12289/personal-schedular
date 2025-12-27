@@ -35,3 +35,9 @@ Tasks per-day checks:
 - Set an optional due date in the add form; edit titles inline by clicking them (Enter to save, Esc to cancel).
 - Update due dates via the date picker in each row; completion toggle and delete should persist after refresh.
 - Reorder tasks by dragging the handle (☰) within the visible list; drop to new position and refresh to confirm order persistence.
+
+Backup export/import checks:
+- Open Settings → Backup, click Export JSON to download events + tasks payload (version 1).
+- Use Import (Merge) on that file; verify event/task counts remain and no duplicates are added.
+- Use Import (Replace) on an edited file; ensure existing events/tasks are overwritten with the file contents.
+- Invalid JSON should surface a friendly inline message instead of crashing.

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { useEvents } from "@/app/hooks/use-events";
+import { useTasks } from "@/app/hooks/use-tasks";
 
 function downloadText(content: string, filename: string) {
   const blob = new Blob([content], { type: "application/json" });
@@ -15,12 +16,24 @@ function downloadText(content: string, filename: string) {
 }
 
 export function SettingsView() {
-  const { events, exportEvents, importFromFile } = useEvents();
+  const {
+    events,
+    replaceAll: replaceEvents,
+    mergeEvents,
+    sanitizeEvents,
+  } = useEvents();
+  const {
+    tasks,
+    replaceAll: replaceTasks,
+    mergeTasks,
+    sanitizeTasks,
+  } = useTasks();
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     if (typeof window === "undefined" || typeof Notification === "undefined") return false;
     return Notification.permission === "granted";
   });
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importMode, setImportMode] = useState<"replace" | "merge">("replace");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleNotificationToggle = async () => {
@@ -36,19 +49,49 @@ export function SettingsView() {
     setNotificationsEnabled(permission === "granted");
   };
 
-  const handleExport = () => {
-    const timestamp = new Date().toISOString().slice(0, 10);
-    downloadText(exportEvents(), `my-schedule-backup-${timestamp}.json`);
+  const handleExportBackup = () => {
+    const timestamp = new Date().toISOString();
+    const payload = {
+      version: 1,
+      exportedAt: timestamp,
+      events,
+      tasks,
+    };
+    downloadText(JSON.stringify(payload, null, 2), `my-schedule-backup-${timestamp.slice(0, 10)}.json`);
   };
 
-  const handleImportClick = () => {
+  const triggerImport = (mode: "replace" | "merge") => {
+    setImportMode(mode);
     fileInputRef.current?.click();
   };
 
   const handleImport = async (file?: File) => {
     if (!file) return;
-    const success = await importFromFile(file);
-    setImportMessage(success ? "Import successful." : "Import failed. Please check the file format.");
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object") throw new Error("Invalid format");
+      const importedEvents = sanitizeEvents((parsed as { events?: unknown }).events ?? []);
+      const importedTasks = sanitizeTasks((parsed as { tasks?: unknown }).tasks ?? []);
+
+      if (!importedEvents.length && !importedTasks.length) {
+        setImportMessage("No valid events or tasks found in file.");
+        return;
+      }
+
+      if (importMode === "replace") {
+        replaceEvents(importedEvents);
+        replaceTasks(importedTasks);
+        setImportMessage("Replaced local events and tasks with backup file.");
+      } else {
+        mergeEvents(importedEvents);
+        mergeTasks(importedTasks);
+        setImportMessage("Merged backup data with existing events and tasks.");
+      }
+    } catch (error) {
+      console.error("Failed to import backup", error);
+      setImportMessage("Import failed. Please check the file and try again.");
+    }
   };
 
   return (
@@ -74,47 +117,51 @@ export function SettingsView() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-slate-50 px-3 py-3">
+          <div className="rounded-xl border border-gray-200 bg-slate-50 px-3 py-3 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold text-slate-800">Export data</p>
-                <p className="text-xs text-slate-500">Download your events as a JSON file for manual sync.</p>
+                <p className="text-sm font-semibold text-slate-800">Backup</p>
+                <p className="text-xs text-slate-500">Export or import your events and tasks.</p>
               </div>
               <button
                 type="button"
-                onClick={handleExport}
+                onClick={handleExportBackup}
                 className="rounded-full bg-purple-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-600"
               >
-                Export
+                Export JSON
               </button>
             </div>
-            <p className="mt-2 text-xs text-slate-500">{events.length} event{events.length === 1 ? "" : "s"} saved.</p>
-          </div>
 
-          <div className="rounded-xl border border-gray-200 bg-slate-50 px-3 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Import data</p>
-                <p className="text-xs text-slate-500">Choose a previously exported JSON file to replace your current data.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/json"
-                  className="hidden"
-                  onChange={(e) => handleImport(e.target.files?.[0])}
-                />
-                <button
-                  type="button"
-                  onClick={handleImportClick}
-                  className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-purple-200"
-                >
-                  Import
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{events.length} event{events.length === 1 ? "" : "s"}</span>
+              <span className="h-3 w-px bg-slate-300" aria-hidden />
+              <span>{tasks.length} task{tasks.length === 1 ? "" : "s"}</span>
             </div>
-            {importMessage && <p className="mt-2 text-xs text-slate-600">{importMessage}</p>}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) => handleImport(e.target.files?.[0])}
+              />
+              <button
+                type="button"
+                onClick={() => triggerImport("replace")}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-purple-200"
+              >
+                Import (Replace)
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerImport("merge")}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-purple-200"
+              >
+                Import (Merge)
+              </button>
+            </div>
+            {importMessage && <p className="text-xs text-slate-600">{importMessage}</p>}
           </div>
         </div>
       </div>

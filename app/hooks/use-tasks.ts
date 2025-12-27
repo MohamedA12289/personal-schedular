@@ -14,6 +14,18 @@ type TaskInput = {
   dueDate?: string;
 };
 
+function sanitizeTasks(payload: unknown): TaskItem[] {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .filter((task): task is TaskItem => typeof task?.id === "string" && typeof task?.title === "string" && typeof task?.dayKey === "string")
+    .map((task, index) => ({
+      ...task,
+      completed: Boolean(task.completed),
+      createdAt: typeof task.createdAt === "string" ? task.createdAt : new Date().toISOString(),
+      order: Number.isFinite((task as TaskItem).order) ? (task as TaskItem).order : index,
+    }));
+}
+
 function normalizeOrder(tasks: TaskItem[]): TaskItem[] {
   return tasks
     .map((task, index) => ({
@@ -118,5 +130,33 @@ export function useTasks() {
     });
   }, []);
 
-  return { tasks, addTask, toggleTask, deleteTask, clearCompleted, updateTask, reorderTasks } as const;
+  const replaceAll = useCallback((next: TaskItem[]) => {
+    setTasks(normalizeOrder(next));
+  }, []);
+
+  const mergeTasks = useCallback((incoming: TaskItem[]) => {
+    if (!incoming.length) return;
+    setTasks((prev) => {
+      const map = new Map<string, TaskItem>();
+      normalizeOrder(prev).forEach((task) => map.set(task.id, task));
+      normalizeOrder(incoming).forEach((task) => map.set(task.id, task));
+      return normalizeOrder(Array.from(map.values()));
+    });
+  }, []);
+
+  const exportTasks = useCallback(() => JSON.stringify(tasks, null, 2), [tasks]);
+
+  return {
+    tasks,
+    addTask,
+    toggleTask,
+    deleteTask,
+    clearCompleted,
+    updateTask,
+    reorderTasks,
+    replaceAll,
+    mergeTasks,
+    exportTasks,
+    sanitizeTasks,
+  } as const;
 }

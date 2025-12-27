@@ -54,6 +54,15 @@ function normalizeEvent(event: EventItem): EventItem {
   };
 }
 
+function sanitizeEvents(payload: unknown): EventItem[] {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .filter((item): item is EventItem =>
+      typeof item?.id === "string" && typeof item?.title === "string" && typeof item?.start === "string"
+    )
+    .map(normalizeEvent);
+}
+
 export function useEvents() {
   const [events, setEvents] = useState<EventItem[]>(() => readEvents());
   const [userId, setUserId] = useState<string | null>(null);
@@ -194,21 +203,46 @@ export function useEvents() {
     setEvents(next.map(normalizeEvent));
   }, []);
 
+  const mergeEvents = useCallback((incoming: EventItem[]) => {
+    if (!incoming.length) return;
+    setEvents((prev) => {
+      const map = new Map<string, EventItem>();
+      prev.forEach((event) => map.set(event.id, normalizeEvent(event)));
+      incoming.forEach((event) => map.set(event.id, normalizeEvent(event)));
+      return Array.from(map.values());
+    });
+  }, []);
+
   const exportEvents = useCallback(() => JSON.stringify(events, null, 2), [events]);
 
-  const importFromFile = useCallback(async (file: File) => {
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed)) return false;
-      const valid = parsed.filter((item): item is EventItem => typeof item?.id === "string" && typeof item?.title === "string");
-      replaceAll(valid);
-      return true;
-    } catch (error) {
-      console.error("Failed to import events", error);
-      return false;
-    }
-  }, [replaceAll]);
+  const importFromFile = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const valid = sanitizeEvents(parsed);
+        if (!valid.length) return false;
+        replaceAll(valid);
+        return true;
+      } catch (error) {
+        console.error("Failed to import events", error);
+        return false;
+      }
+    },
+    [replaceAll]
+  );
 
-  return { events, addEvent, addEvents, updateEvent, deleteEvent, replaceAll, exportEvents, importFromFile, userId } as const;
+  return {
+    events,
+    addEvent,
+    addEvents,
+    updateEvent,
+    deleteEvent,
+    replaceAll,
+    mergeEvents,
+    exportEvents,
+    importFromFile,
+    sanitizeEvents,
+    userId,
+  } as const;
 }
